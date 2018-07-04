@@ -21,6 +21,7 @@
 #include "flow/actorcompiler.h"
 #include "IKeyValueStore.h"
 #include "IDiskQueue.h"
+#include "Status.h"
 #include "flow/IndexedSet.h"
 #include "flow/ActorCollection.h"
 #include "fdbclient/Notified.h"
