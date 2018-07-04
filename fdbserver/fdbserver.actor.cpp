@@ -1276,7 +1276,7 @@ int main(int argc, char* argv[]) {
 						throw;
 					}
 				}
-
+                ClusterHealth::getInstance().setConnectionFile(connectionFile);
 			// failmon?
 		}
 

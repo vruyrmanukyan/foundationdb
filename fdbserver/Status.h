@@ -34,4 +34,34 @@ std::string extractAttribute( std::string const& expanded, std::string const& at
 Future<StatusReply> clusterGetStatus( Reference<AsyncVar<struct ServerDBInfo>> const& db, Database const& cx, vector<std::pair<WorkerInterface, ProcessClass>> const& workers,
 	ProcessIssuesMap const& workerIssues, ProcessIssuesMap const& clientIssues, ClientVersionMap const& clientVersionMap, std::map<NetworkAddress, std::string> const& traceLogGroupMap, ServerCoordinators const& coordinators, std::vector<NetworkAddress> const& incompatibleConnections );
 
+class ClusterHealth
+{
+public:
+    ClusterHealth() = default;
+    ~ClusterHealth() = default;
+
+public:
+    ClusterHealth(const ClusterHealth&) = delete;
+    ClusterHealth(ClusterHealth&&) = delete;
+    ClusterHealth& operator=(const ClusterHealth&) = delete;
+    ClusterHealth& operator=(ClusterHealth&&) = delete;
+
+public:
+    static ClusterHealth& getInstance()
+    {
+        static ClusterHealth instance;
+        return instance;
+    }
+
+    void setConnectionFile(const Reference<ClusterConnectionFile> c)
+    {
+        m_connectionFile = c;
+    }
+
+    Future<bool> isHealthy() const;
+
+private:
+    Reference<ClusterConnectionFile> m_connectionFile;
+};
+
 #endif

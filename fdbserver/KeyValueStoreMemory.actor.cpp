@@ -451,112 +451,116 @@ private:
 		TraceEvent("KVSMemRecoveryStarted", self->id)
 			.detail("SnapshotEndLocation", uncommittedSnapshotEnd);
 
-		try {
-			loop {
-				Standalone<StringRef> data = wait( self->log->readNext( sizeof(OpHeader) ) );
-				if (data.size() != sizeof(OpHeader)) {
-					if (data.size()) {
-						TEST(true);  // zero fill partial header in KeyValueStoreMemory
-						memset(&h, 0, sizeof(OpHeader));
-						memcpy(&h, data.begin(), data.size());
-						zeroFillSize = sizeof(OpHeader)-data.size() + h.len1 + h.len2 + 1;
-					}
-					TraceEvent("KVSMemRecoveryComplete", self->id)
-						.detail("Reason", "Non-header sized data read")
-						.detail("DataSize", data.size())
-						.detail("ZeroFillSize", zeroFillSize)
-						.detail("SnapshotEndLocation", uncommittedSnapshotEnd)
-						.detail("NextReadLoc", self->log->getNextReadLocation());
-					break;
-				}
-				h = *(OpHeader*)data.begin();
-				Standalone<StringRef> data = wait( self->log->readNext( h.len1 + h.len2+1 ) );
-				if (data.size() != h.len1 + h.len2 + 1) {
-					zeroFillSize = h.len1 + h.len2 + 1 - data.size();
-					TraceEvent("KVSMemRecoveryComplete", self->id)
-						.detail("Reason", "data specified by header does not exist")
-						.detail("DataSize", data.size())
-						.detail("ZeroFillSize", zeroFillSize)
-						.detail("SnapshotEndLocation", uncommittedSnapshotEnd)
-						.detail("OpCode", h.op)
-						.detail("NextReadLoc", self->log->getNextReadLocation());
-					break;
-				}
 
-				if (data[data.size()-1]) {
-					StringRef p1 = data.substr(0, h.len1);
-					StringRef p2 = data.substr(h.len1, h.len2);
+        try {
+            bool isHealthy = wait(ClusterHealth::getInstance().isHealthy());
+            if (!isHealthy) {
+                loop {
+                    Standalone<StringRef> data = wait( self->log->readNext( sizeof(OpHeader) ) );
+                    if (data.size() != sizeof(OpHeader)) {
+                        if (data.size()) {
+                            TEST(true);  // zero fill partial header in KeyValueStoreMemory
+                            memset(&h, 0, sizeof(OpHeader));
+                            memcpy(&h, data.begin(), data.size());
+                            zeroFillSize = sizeof(OpHeader)-data.size() + h.len1 + h.len2 + 1;
+                        }
+                        TraceEvent("KVSMemRecoveryComplete", self->id)
+                            .detail("Reason", "Non-header sized data read")
+                            .detail("DataSize", data.size())
+                            .detail("ZeroFillSize", zeroFillSize)
+                            .detail("SnapshotEndLocation", uncommittedSnapshotEnd)
+                            .detail("NextReadLoc", self->log->getNextReadLocation());
+                        break;
+                    }
+                    h = *(OpHeader*)data.begin();
+                    Standalone<StringRef> data = wait( self->log->readNext( h.len1 + h.len2+1 ) );
+                    if (data.size() != h.len1 + h.len2 + 1) {
+                        zeroFillSize = h.len1 + h.len2 + 1 - data.size();
+                        TraceEvent("KVSMemRecoveryComplete", self->id)
+                            .detail("Reason", "data specified by header does not exist")
+                            .detail("DataSize", data.size())
+                            .detail("ZeroFillSize", zeroFillSize)
+                            .detail("SnapshotEndLocation", uncommittedSnapshotEnd)
+                            .detail("OpCode", h.op)
+                            .detail("NextReadLoc", self->log->getNextReadLocation());
+                        break;
+                    }
 
-					if (h.op == OpSnapshotItem) { // snapshot data item
-						/*if (p1 < uncommittedNextKey) {
-							TraceEvent(SevError, "RecSnapshotBack", self->id)
-								.detail("NextKey", printable(uncommittedNextKey))
-								.detail("P1", printable(p1))
-								.detail("Nextlocation", self->log->getNextReadLocation());
-						}
-						ASSERT( p1 >= uncommittedNextKey );*/
-						if( p1 >= uncommittedNextKey )
-							recoveryQueue.clear( KeyRangeRef(uncommittedNextKey, p1), &uncommittedNextKey.arena() ); //FIXME: Not sure what this line is for, is it necessary?
-						recoveryQueue.set( KeyValueRef(p1, p2), &data.arena() );
-						uncommittedNextKey = keyAfter(p1);
-						++dbgSnapshotItemCount;
-					} else if (h.op == OpSnapshotEnd || h.op == OpSnapshotAbort) { // snapshot complete
-						TraceEvent("RecSnapshotEnd", self->id)
-							.detail("NextKey", printable(uncommittedNextKey))
-							.detail("Nextlocation", self->log->getNextReadLocation())
-							.detail("IsSnapshotEnd", h.op == OpSnapshotEnd);
+                    if (data[data.size()-1]) {
+                        StringRef p1 = data.substr(0, h.len1);
+                        StringRef p2 = data.substr(h.len1, h.len2);
 
-						if(h.op == OpSnapshotEnd) {
-							uncommittedPrevSnapshotEnd = uncommittedSnapshotEnd;
-							uncommittedSnapshotEnd = self->log->getNextReadLocation();
-							recoveryQueue.clear_to_end( uncommittedNextKey, &uncommittedNextKey.arena() );
-						}
+                        if (h.op == OpSnapshotItem) { // snapshot data item
+                            /*if (p1 < uncommittedNextKey) {
+                              TraceEvent(SevError, "RecSnapshotBack", self->id)
+                              .detail("NextKey", printable(uncommittedNextKey))
+                              .detail("P1", printable(p1))
+                              .detail("Nextlocation", self->log->getNextReadLocation());
+                              }
+                              ASSERT( p1 >= uncommittedNextKey );*/
+                            if( p1 >= uncommittedNextKey )
+                                recoveryQueue.clear( KeyRangeRef(uncommittedNextKey, p1), &uncommittedNextKey.arena() ); //FIXME: Not sure what this line is for, is it necessary?
+                            recoveryQueue.set( KeyValueRef(p1, p2), &data.arena() );
+                            uncommittedNextKey = keyAfter(p1);
+                            ++dbgSnapshotItemCount;
+                        } else if (h.op == OpSnapshotEnd || h.op == OpSnapshotAbort) { // snapshot complete
+                            TraceEvent("RecSnapshotEnd", self->id)
+                                .detail("NextKey", printable(uncommittedNextKey))
+                                .detail("Nextlocation", self->log->getNextReadLocation())
+                                .detail("IsSnapshotEnd", h.op == OpSnapshotEnd);
 
-						uncommittedNextKey = Key();
-						++dbgSnapshotEndCount;
-					} else if (h.op == OpSet) { // set mutation
-						recoveryQueue.set( KeyValueRef(p1,p2), &data.arena() );
-						++dbgMutationCount;
-					} else if (h.op == OpClear) { // clear mutation
-						recoveryQueue.clear( KeyRangeRef(p1,p2), &data.arena() );
-						++dbgMutationCount;
-					} else if (h.op == OpClearToEnd) { //clear all data from begin key to end
-						recoveryQueue.clear_to_end( p1, &data.arena() );
-					} else if (h.op == OpCommit) { // commit previous transaction
-						self->commit_queue(recoveryQueue, false);
-						++dbgCommitCount;
-						self->recoveredSnapshotKey = uncommittedNextKey;
-						self->previousSnapshotEnd = uncommittedPrevSnapshotEnd;
-						self->currentSnapshotEnd = uncommittedSnapshotEnd;
-					} else if (h.op == OpRollback) { // rollback previous transaction
-						recoveryQueue.rollback();
-						TraceEvent("KVSMemRecSnapshotRollback", self->id)
-							.detail("NextKey", printable(uncommittedNextKey));
-						uncommittedNextKey = self->recoveredSnapshotKey;
-						uncommittedPrevSnapshotEnd = self->previousSnapshotEnd;
-						uncommittedSnapshotEnd = self->currentSnapshotEnd;
-					} else
-						ASSERT(false);
-				} else {
-					TraceEvent("KVSMemRecoverySkippedZeroFill", self->id)
-						.detail("PayloadSize", data.size())
-						.detail("ExpectedSize", h.len1 + h.len2 + 1)
-						.detail("OpCode", h.op)
-						.detail("EndsAt", self->log->getNextReadLocation());
-				}
+                            if(h.op == OpSnapshotEnd) {
+                                uncommittedPrevSnapshotEnd = uncommittedSnapshotEnd;
+                                uncommittedSnapshotEnd = self->log->getNextReadLocation();
+                                recoveryQueue.clear_to_end( uncommittedNextKey, &uncommittedNextKey.arena() );
+                            }
 
-				if (loggingDelay.isReady()) {
-					TraceEvent("KVSMemRecoveryLogSnap", self->id)
-						.detail("SnapshotItems", dbgSnapshotItemCount)
-						.detail("SnapshotEnd", dbgSnapshotEndCount)
-						.detail("Mutations", dbgMutationCount)
-						.detail("Commits", dbgCommitCount)
-						.detail("EndsAt", self->log->getNextReadLocation());
-					loggingDelay = delay(1.0);
-				}
+                            uncommittedNextKey = Key();
+                            ++dbgSnapshotEndCount;
+                        } else if (h.op == OpSet) { // set mutation
+                            recoveryQueue.set( KeyValueRef(p1,p2), &data.arena() );
+                            ++dbgMutationCount;
+                        } else if (h.op == OpClear) { // clear mutation
+                            recoveryQueue.clear( KeyRangeRef(p1,p2), &data.arena() );
+                            ++dbgMutationCount;
+                        } else if (h.op == OpClearToEnd) { //clear all data from begin key to end
+                            recoveryQueue.clear_to_end( p1, &data.arena() );
+                        } else if (h.op == OpCommit) { // commit previous transaction
+                            self->commit_queue(recoveryQueue, false);
+                            ++dbgCommitCount;
+                            self->recoveredSnapshotKey = uncommittedNextKey;
+                            self->previousSnapshotEnd = uncommittedPrevSnapshotEnd;
+                            self->currentSnapshotEnd = uncommittedSnapshotEnd;
+                        } else if (h.op == OpRollback) { // rollback previous transaction
+                            recoveryQueue.rollback();
+                            TraceEvent("KVSMemRecSnapshotRollback", self->id)
+                                .detail("NextKey", printable(uncommittedNextKey));
+                            uncommittedNextKey = self->recoveredSnapshotKey;
+                            uncommittedPrevSnapshotEnd = self->previousSnapshotEnd;
+                            uncommittedSnapshotEnd = self->currentSnapshotEnd;
+                        } else
+                            ASSERT(false);
+                    } else {
+                        TraceEvent("KVSMemRecoverySkippedZeroFill", self->id)
+                            .detail("PayloadSize", data.size())
+                            .detail("ExpectedSize", h.len1 + h.len2 + 1)
+                            .detail("OpCode", h.op)
+                            .detail("EndsAt", self->log->getNextReadLocation());
+                    }
 
-				Void _ = wait( yield() );
-			}
+                    if (loggingDelay.isReady()) {
+                        TraceEvent("KVSMemRecoveryLogSnap", self->id)
+                            .detail("SnapshotItems", dbgSnapshotItemCount)
+                            .detail("SnapshotEnd", dbgSnapshotEndCount)
+                            .detail("Mutations", dbgMutationCount)
+                            .detail("Commits", dbgCommitCount)
+                            .detail("EndsAt", self->log->getNextReadLocation());
+                        loggingDelay = delay(1.0);
+                    }
+
+                    Void _ = wait( yield() );
+                }
+            }
 
 			if (zeroFillSize) {
 				TEST( true );  // Fixing a partial commit at the end of the KeyValueStoreMemory log

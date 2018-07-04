@@ -24,6 +24,10 @@
 #include "fdbclient/NativeAPI.h"
 #include "fdbclient/SystemData.h"
 #include "fdbclient/ReadYourWrites.h"
+#include "fdbrpc/JSONDoc.h"
+#include "fdbclient/CoordinationInterface.h"
+#include "fdbclient/StatusClient.h"
+#include "fdbclient/Status.h"
 #include "WorkerInterface.h"
 #include "ClusterRecruitmentInterface.h"
 #include <time.h>
@@ -1916,6 +1920,37 @@ ACTOR Future<StatusReply> clusterGetStatus(
 		TraceEvent(SevError, "StatusError").error(e);
 		throw;
 	}
+}
+
+ACTOR Future<bool> isHealthy(Reference<ClusterConnectionFile> connectionFile)
+{
+    if (!connectionFile) {
+        return false;
+    }
+    StatusObject status = wait(StatusClient::statusFetcher(connectionFile));
+    JSONDoc statusObj(status);
+    JSONDoc statusObjCluster;
+    statusObj.get("cluster", statusObjCluster);
+    JSONDoc statusObjData;
+    statusObjCluster.get("data", statusObjData);
+    JSONDoc statusObjDataState;
+    statusObjData.get("state", statusObjDataState);
+    bool healthy;
+    std::string name;
+    statusObjDataState.get("name", name);
+    std::cout << "name = " << name << std::endl;
+    statusObjDataState.get("description", name);
+    std::cout << "description = " << name << std::endl;
+    bool get_result = statusObjDataState.get("healthy", healthy);
+    std::cout << "get = " << get_result << std::endl;
+    std::cout << "healthy = " << healthy << std::endl;
+    assert(!(get_result && healthy));
+    return get_result && healthy;
+}
+
+Future<bool> ClusterHealth::isHealthy() const
+{
+    return ::isHealthy(m_connectionFile);
 }
 
 TEST_CASE("status/json/merging") {
