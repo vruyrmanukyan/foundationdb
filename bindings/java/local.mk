@@ -54,15 +54,26 @@ JAVA_GENERATED_SOURCES := bindings/java/src/main/java/com/apple/foundationdb/Net
 
 JAVA_SOURCES := $(JAVA_GENERATED_SOURCES) bindings/java/src/main/java/com/apple/foundationdb/*.java bindings/java/src/main/java/com/apple/foundationdb/async/*.java bindings/java/src/main/java/com/apple/foundationdb/tuple/*.java bindings/java/src/main/java/com/apple/foundationdb/directory/*.java bindings/java/src/main/java/com/apple/foundationdb/subspace/*.java bindings/java/src/test/java/com/apple/foundationdb/test/*.java bindings/java/src/test/java/com/apple/foundationdb/tuple/*.java
 
-fdb_java: $(JAVA_GENERATED_SOURCES)
-	@mvn clean install -DskipTests -f ./bindings/java/pom.xml
+fdb_java: bindings/java/foundationdb-client.jar bindings/java/foundationdb-tests.jar
+	@mvn install -DskipTests -f ./bindings/java/pom.xml
 
-fdb_java_run_tests:$(JAVA_GENERATED_SOURCES)
-	@mvn clean install -f ./bindings/java/pom.xml
+bindings/java/foundationdb-tests.jar:
+	@echo "Building       $@"
+	@jar cf $@ -C bindings/java/target/test-classes/ com/apple/foundationdb
+
+bindings/java/foundationdb-client.jar: lib/libfdb_java.$(DLEXT)
+	@echo "Building       $@"
+	@rm -rf bindings/java/target/classes/lib/$(PLATFORM)/$(java_ARCH)
+	@mkdir -p bindings/java/target/classes/lib/$(PLATFORM)/$(java_ARCH)
+	@cp lib/libfdb_java.$(DLEXT) bindings/java/target/classes/lib/$(PLATFORM)/$(java_ARCH)/libfdb_java.$(java_DLEXT)
+	@jar cf $@ -C bindings/java/target/classes/ com/apple/foundationdb -C bindings/java/target/classes/ lib
+
+fdb_java_run_tests: $(JAVA_GENERATED_SOURCES)
+	@mvn test -f ./bindings/java/pom.xml
 
 fdb_java_target_clean:
 	@rm -rf $(JAVA_GENERATED_SOURCES)
-	@rm -rf bindings/java/target
+	@mvn clean -f ./bindings/java/pom.xml
 
 # Redefinition of a target already defined in generated.mk, but it's "okay" and the way things were done before.
 fdb_java_clean: fdb_java_target_clean
@@ -114,24 +125,12 @@ ifeq ($(PLATFORM),linux)
 	packages/fdb-java-$(JARVER).jar: $(MAC_OBJ_JAVA) $(WINDOWS_OBJ_JAVA)
   endif
 
-  bindings/java/foundationdb-tests.jar:
-	@echo "Building       $@"
-	@jar cf $@ -C bindings/java/target/test-classes/ com/apple/foundationdb
-
-  bindings/java/foundationdb-client.jar: lib/libfdb_java.$(DLEXT)
-	@echo "Building       $@"
-	@rm -rf bindings/java/target/classes/lib/$(PLATFORM)/$(java_ARCH)
-	@mkdir -p bindings/java/target/classes/lib/$(PLATFORM)/$(java_ARCH)
-	@cp lib/libfdb_java.$(DLEXT) bindings/java/target/classes/lib/$(PLATFORM)/$(java_ARCH)/libfdb_java.$(java_DLEXT)
-	@jar cf $@ -C bindings/java/target/classes/ com/apple/foundationdb -C bindings/java/target/classes/ lib
-
-
   bindings/java/fdb-java-$(APPLEJARVER).pom: bindings/java/pom.xml
 	@echo "Copying        $@"
 	sed -e 's/-PRERELEASE/-SNAPSHOT/g' bindings/java/pom.xml > "$@"
 
   packages/fdb-java-$(JARVER).jar: fdb_java versions.target bindings/java/foundationdb-client.jar
-	@echo "Building      $@"
+	@echo "Building       $@"
 	@rm -f $@
 	@rm -rf packages/jar_regular
 	@mkdir -p packages/jar_regular

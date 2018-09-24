@@ -25,7 +25,7 @@ public class TupleTest {
 		assertArrayEquals(b1, (byte[]) Tuple.unpackObject(res, 0));
 		assertArrayEquals(b2, (byte[]) Tuple.unpackObject(res, 1));
 		assertArrayEquals(b3, (byte[]) Tuple.unpackObject(res, 2));
-		assertEquals(3, Tuple.getEncodedObjectsCount(res));
+		assertEquals(3, Tuple.getEncodedObjectCount(res));
 	}
 
 	@Test
@@ -41,7 +41,7 @@ public class TupleTest {
 		assertEquals(str1, Tuple.unpackObject(res, 0));
 		assertEquals(str2, Tuple.unpackObject(res, 1));
 		assertEquals(str3, Tuple.unpackObject(res, 2));
-		assertEquals(3, Tuple.getEncodedObjectsCount(res));
+		assertEquals(3, Tuple.getEncodedObjectCount(res));
 	}
 
 	@Test
@@ -68,7 +68,7 @@ public class TupleTest {
 		byte[] res = TupleUtil.pack(list, null);
 		assertEquals(true, Tuple.unpackObject(res, 0));
 		assertEquals(false, Tuple.unpackObject(res, 1));
-		assertEquals(2, Tuple.getEncodedObjectsCount(res));
+		assertEquals(2, Tuple.getEncodedObjectCount(res));
 	}
 
 	@Test
@@ -135,7 +135,7 @@ public class TupleTest {
 		v2 = Versionstamp.complete(b2, 1);
 		assertNotEquals(v1, Tuple.unpackObject(res, 0));
 		assertNotEquals(v2, Tuple.unpackObject(res, 1));
-		assertEquals(2, Tuple.getEncodedObjectsCount(res));
+		assertEquals(2, Tuple.getEncodedObjectCount(res));
 	}
 
 	@Test
@@ -145,7 +145,7 @@ public class TupleTest {
 		list.add(objects);
 		byte[] res = TupleUtil.pack(list, null);
 		assertEquals(objects, Tuple.unpackObject(res, 0));
-		assertEquals(1, Tuple.getEncodedObjectsCount(res));
+		assertEquals(1, Tuple.getEncodedObjectCount(res));
 	}
 
 	@Test
@@ -159,7 +159,7 @@ public class TupleTest {
 		assertEquals("String", Tuple.unpackObject(res, 1));
 		Tuple.unpackObject(res, 0, 0, objectEnd);
 		assertEquals("String", Tuple.unpackObject(res, 0, objectEnd.get()));
-		assertEquals(2, Tuple.getEncodedObjectsCount(res));
+		assertEquals(2, Tuple.getEncodedObjectCount(res));
 		assertEquals(null, Tuple.unpackObject(res, 2));
 		assertEquals(null, Tuple.unpackObject(res, 1, objectEnd.get()));
 	}

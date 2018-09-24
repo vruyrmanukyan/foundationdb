@@ -416,7 +416,6 @@ public class Tuple implements Comparable<Tuple>, Iterable<Object> {
 		return t;
 	}
 
-
 	/**
 	 * Unpacks an object from {@code bytes}.
 	 * {@code bytes} should be encoded via Tuple's pack function
@@ -427,8 +426,9 @@ public class Tuple implements Comparable<Tuple>, Iterable<Object> {
 	 * @return null if the {@code index} is greater than the encoded
 	 * 		   objects count, otherwise the unpacked object
 	 *
-	 * @throws IllegalArgumentException if the object at {@code index} has an unsupported type.
-	 * @throws NullPointerException if {@code bytes} is {@code null}.
+	 * @throws IllegalArgumentException if the object at {@code index} has an unsupported type
+	 * @throws NullPointerException if {@code bytes} is {@code null}
+	 * @throws AssertionError if there is no object with the given parameters
 	 */
 	public static Object unpackObject(byte[] bytes, int index) {
 		return unpackObject(bytes, index, 0, null);
@@ -447,8 +447,9 @@ public class Tuple implements Comparable<Tuple>, Iterable<Object> {
 	 * @return null if starting from {@code offset} the {@code index} is greater than the encoded
 	 * 		   objects count, otherwise the unpacked object
 	 *
-	 * @throws IllegalArgumentException if the object at {@code index} has an unsupported type.
-	 * @throws NullPointerException if {@code bytes} is {@code null}.
+	 * @throws IllegalArgumentException if the object at {@code index} has an unsupported type
+	 * @throws NullPointerException if {@code bytes} is {@code null}
+	 * @throws AssertionError if there is no object with the given parameters
 	 */
 	public static Object unpackObject(byte[] bytes, int index, int offset) {
 		return unpackObject(bytes, index, offset, null);
@@ -463,15 +464,17 @@ public class Tuple implements Comparable<Tuple>, Iterable<Object> {
 	 * @param offset the starting offset of byte array. If a valid tuple encoded object
 	 *               does not begin at the specified {@code offset} the function will throw an
 	 *               exception or return a garbage
-	 * @param objectEnd gets the starting position of the next object
+	 * @param nextStart gets the starting position of the next object
 	 *
 	 * @return null if starting from {@code offset} the {@code index} is greater than the encoded
 	 * 		   objects count, otherwise the unpacked object
 	 *
-	 * @throws IllegalArgumentException if the object at {@code index} has an unsupported type.
-	 * @throws NullPointerException if {@code bytes} is {@code null}.
+	 * @throws IllegalArgumentException if the object at {@code index} has an unsupported type
+	 * @throws NullPointerException if {@code bytes} is {@code null}
+	 * @throws AssertionError if there is no object with the given parameters
 	 */
-	public static Object unpackObject(byte[] bytes, int index, int offset, AtomicInteger objectEnd) {
+	public static Object unpackObject(byte[] bytes, int index, int offset,
+									  AtomicInteger nextStart) {
 		int current = offset;
 		int i = 0;
 		boolean decode;
@@ -480,17 +483,14 @@ public class Tuple implements Comparable<Tuple>, Iterable<Object> {
 			TupleUtil.DecodeResult dr = TupleUtil.decode(bytes, current, bytes.length, decode);
 			current = dr.end;
 			if (decode) {
-				if (objectEnd != null) {
-					objectEnd.set(current);
+				if (nextStart != null) {
+					nextStart.set(current);
 				}
 				return dr.o;
 			}
 			++i;
 		}
-		if (objectEnd != null) {
-			objectEnd.set(0);
-		}
-		return null;
+		throw new AssertionError("There is no object with the given parameters");
 	}
 
 	/**
@@ -501,7 +501,7 @@ public class Tuple implements Comparable<Tuple>, Iterable<Object> {
 	 *
 	 * @return the encoded objects count
 	 */
-	public static int getEncodedObjectsCount(byte[] bytes) {
+	public static int getEncodedObjectCount(byte[] bytes) {
 	   int i = 0;
 	   int current = 0;
 	   while (current < bytes.length) {
