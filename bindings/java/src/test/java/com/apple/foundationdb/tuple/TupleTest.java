@@ -148,7 +148,7 @@ public class TupleTest {
 		assertEquals(1, Tuple.getEncodedObjectCount(res));
 	}
 
-	@Test
+	@Test(expected = AssertionError.class)
 	public void testPackObjects() {
 		List<Object> list = new ArrayList<>();
 		list.add(13);
@@ -160,8 +160,9 @@ public class TupleTest {
 		Tuple.unpackObject(res, 0, 0, objectEnd);
 		assertEquals("String", Tuple.unpackObject(res, 0, objectEnd.get()));
 		assertEquals(2, Tuple.getEncodedObjectCount(res));
-		assertEquals(null, Tuple.unpackObject(res, 2));
-		assertEquals(null, Tuple.unpackObject(res, 1, objectEnd.get()));
+
+		// this should throw an AssertionError exception
+		Tuple.unpackObject(res, 2);
 	}
 
 	@Test
